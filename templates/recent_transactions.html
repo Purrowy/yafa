@@ -1,0 +1,30 @@
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Date</th>
+        <th>Account</th>
+        <th>Description</th>
+        <th>Amount</th>
+    </tr>
+    {% for row in recent %}
+    <tr>
+        <td>{{ row['id'] }}</td>
+        <td>{{ row['timestamp'] }}</td>
+        <td>{{ row['account'] }}</td>
+        <td>{{ row['description'] }}</td>
+        <td>{{ row['amount'] }}</td>
+        <td>
+            <form action="{{ url_for('transactions.delete_transaction') }}" method="post">
+                <input type="hidden" id="id" name="id" value="{{ row['id'] }}" readonly="readonly">
+                <input type="submit" value="Usuń">
+            </form>
+        </td>
+        <td>
+            <form action="{{ url_for('transactions.transaction_details') }}" method="get">
+                <input type="hidden" id="id" name="id" value="{{ row['id'] }}" readonly="readonly">
+                <input type="submit" value="Details">
+            </form>
+        </td>
+    </tr>
+    {%endfor%}
+</table>

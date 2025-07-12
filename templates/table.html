@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<H1></H1>
+    <form action="/find" method="get">
+        <select id="account" name="account">
+            <option value="all"> </option>
+            {% for acc in accounts %}
+                <option value="{{ acc['bank'] }}">{{ acc['bank'] }}</option>
+            {%endfor%}
+         <input type="submit" value="Szukaj w bazie">
+    </form>
+            <h1></h1>
+    <div>
+        <table>
+            <tr>
+                <th>Account</th>
+                <th>Timestamp</th>
+                <th>Amount</th>
+            </tr>
+        {% for record in records %}
+            <tr>
+                <td>{{ record['account'] }}</td>
+                <td>{{ record['timestamp'] }}</td>
+                <td>{{ record['amount'] }}</td>
+                <td>
+                    <form action="{{ url_for('transactions.delete_transaction') }}" method="post">
+                        <input type="hidden" id="id" name="id" value="{{ record['id'] }}" readonly="readonly">
+                        <input type="submit" value="Usuń">
+                    </form>
+                </td>
+                <td>
+                    <form action="{{ url_for('transactions.transaction_details') }}" method="get">
+                        <input type="hidden" id="id" name="id" value="{{ record['id'] }}" readonly="readonly">
+                        <input type="submit" value="Details">
+                    </form>
+                </td>
+            </tr>
+        {%endfor%}
+        </table>
+    </div>
+{% endblock %}

@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!-- sprawdzić czemu działa tylko z url_for -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+        <title>YAFA - test</title>
+    </head>
+    <body>
+    {% include "top_bar.html" %}
+    {% block content %}{% endblock %}
+    </body>
+</html>

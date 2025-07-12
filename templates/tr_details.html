@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Tr details for {{ id }}</h2>
+
+<!-- tr_data passed jako python dict, nie sqlite object-->
+
+<div>
+
+    <form action="{{ url_for('transactions.transaction_details') }}" method="post">
+
+    <table>
+
+        <tr>
+            {% for key in tr_data[0].keys() %}
+                <th>{{ key }}</th>
+            {%endfor%}
+        </tr>
+
+        {% for row in tr_data %}
+        <tr>            
+            {% for key, value in row.items() %}
+                {% if key == "id" %}
+                    <td><input type="text" id="{{ key }}" name="{{ key }}" value="{{ value }}" readonly="readonly"></td>
+                {% else %}
+                    <td><input type="text" id="{{ key }}" name="{{ key }}" value="{{ value }}"></td>
+                {% endif %}
+            {%endfor%}
+        </tr>
+        {%endfor%}
+    
+    </table>
+
+    
+    <input type="submit" value="Zapisz zmiany"></form>
+
+</div>
+
+{% endblock %}

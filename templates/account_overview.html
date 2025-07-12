@@ -1,0 +1,39 @@
+<h1></h1>
+<table>
+    <tr>
+        <th>bank</th>
+        <th>Name</th>
+        <th>Amount</th>
+    </tr>
+    {% for acc in accounts %}
+        {% if acc['name'] == 'Daily' %}
+            <tr>
+                <td>{{ acc['bank'] }}</td>
+                <td>{{ acc['name'] }}</td>
+                <!-- round to two decimals -->
+                <td>{{ "%.2f"|format(acc['amount']) }}</td>
+            </tr>
+        {% endif %}
+    {% endfor %}
+</table>
+
+<h1></h1>
+
+<table>
+    <tr>
+        <th>bank</th>
+        <th>Name</th>
+        <th>Amount</th>
+    </tr>
+    {% for acc in accounts %}
+        {% if acc['name'] != 'Daily' %}
+            <tr>
+                <td>{{ acc['bank'] }}</td>
+                <td>{{ acc['name'] }}</td>
+                <td>{{ "%.2f"|format(acc['amount']) }}</td>
+        {% endif %}
+            </tr>
+    {% endfor %}
+</table>
+
+<h2>Total cash: {{ "%.2f"|format(total) }}</h2>
