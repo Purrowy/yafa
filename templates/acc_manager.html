@@ -7,11 +7,11 @@
             {% for data in accounts_data %}
             <form action="{{ url_for('acc_manager.manager') }}" method="post">
             <tr>
-                <input type="hidden" id="id" name="id" value="{{ data['id'] }}" readonly="readonly">
+                <input type="hidden" id="id_{{ data['id'] }}" name="id" value="{{ data['id'] }}" readonly="readonly">
                 <td>{{ data['bank'] }}</td>
                 <td>{{ data['name'] }}</td>
-                <td><input type="text" id="amount" name="amount" placeholder="{{ data['amount'] }}"></td>
-                <td><input type="submit" value="Save changes"></td>
+                <td><input type="text" id="amount_{{ data['id'] }}" name="amount" value="{{ data['amount'] }}"></td>
+                <td><input id="submit_{{ data['id'] }}" type="submit" value="Save changes"></td>
             </tr>
             </form>
             {%endfor%}
@@ -22,10 +22,10 @@
     <!-- do dodawania nowych kont do db -->
     <div>
         <form action="{{ url_for('acc_manager.add_acc') }}" method="post">
-            <input type="text" id="bank" name="bank" placeholder="bank name">
-            <input type="text" id="name" name="name" placeholder="name">
-            <input type="number" id="amount" name="amount" placeholder="amount">
-            <input type="submit" value="wyślij do db">
+            <input type="text" id="new_acc_bank" name="bank" placeholder="bank name">
+            <input type="text" id="new_acc_name" name="name" placeholder="name">
+            <input type="number" id="new_acc_amount" name="amount" placeholder="amount">
+            <input id="add_account_button" type="submit" value="wyślij do db">
         </form>
     </div>
 
