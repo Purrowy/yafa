@@ -1,19 +1,20 @@
 import sqlite3
 from pathlib import Path
+from datetime import datetime
 
 DATABASE = "test.db"
 
-def insert_transaction(date, category, desc, bank, amount):
+def insert_transaction(date, category, desc, account_id, amount):
 
     # utwórz połączenie do test.db i zamknij po wykonaniu bloku
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         insert_query = '''
-        INSERT INTO Transactions (timestamp, category, description, account, amount)
+        INSERT INTO Transactions (timestamp, category, description, account_id, amount)
         VALUES (?, ?, ?, ?, ?);
         '''
         # ten syntax zapobiega sql injections
-        transaction_data = (date, category, desc, bank, amount)
+        transaction_data = (date, category, desc, account_id, amount)
         cursor.execute(insert_query, transaction_data)
         conn.commit()
 
@@ -26,21 +27,14 @@ def fetch_from_db(query, params=()):
         rows = cursor.fetchall()
         return rows
 
-def add_new_account(bank, name, amount):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        insert_query = '''
-        INSERT INTO Accounts (bank, name, amount)
-        VALUES (?, ?, ?);
-        '''
-        transaction_data = (bank, name, amount)
-        cursor.execute(insert_query, transaction_data)
-        conn.commit()
-
 def fetch_data_index():
-    recent = fetch_from_db("select * from Transactions ORDER BY id DESC LIMIT 5")
-    accounts = fetch_from_db("select bank, name, amount from Accounts")
-    total = fetch_from_db("SELECT SUM(amount) FROM Accounts")
+    accounts = list_accounts()
+    recent = fetch_from_db("select Transactions.*, Accounts.bank as account FROM Transactions JOIN Accounts ON Transactions.account_id = Accounts.id ORDER BY id DESC LIMIT 5")
+    total = 0
+    for acc in accounts:
+        acc['amount'] = get_current_balance(acc['id'])
+        total = total + acc["amount"]
+
     return recent, accounts, total
 
 def update_table_row(table, column, new_value, filter):
@@ -62,23 +56,62 @@ def delete_table_row(table, filter):
         conn.commit()
     return
 
-def list_accounts():
-    return fetch_from_db("select id, bank from Accounts")
+def get_current_balance(account):
+    date = datetime.now().strftime("%Y-%m")
+    current_balance = fetch_from_db(f"select amount from snapshots WHERE account_id = {account} AND snapshot_date = '{date}'")[0][0]
+    amount_spent = fetch_from_db(f"SELECT SUM(amount) FROM Transactions where account_id = {account} AND timestamp LIKE '{date}%'")[0][0]
+    try:
+        current_balance = float(current_balance) - float(amount_spent)
+    except:
+        pass
+    return current_balance
 
-def sum_from_table(table, filter):
-    # add validation
-    query = f"SELECT SUM(amount) from {table} WHERE account = ?"
-    sum = fetch_from_db(query, (filter,))
-    return sum
+def get_snapshot_amount(account_id, date):
+    con = sqlite3.connect(DATABASE)
+    con.row_factory = sqlite3.Row
+    cursor = con.cursor()
+    query = "SELECT amount FROM snapshots WHERE account_id = ? AND snapshot_date = ?"
+    cursor.execute(query, (account_id, date, ))
+    result = cursor.fetchone()[0]
+    return result
+
+def list_accounts():
+    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
+    con = sqlite3.connect(DATABASE)
+    con.row_factory = sqlite3.Row
+    cursor = con.cursor()
+    cursor.execute("SELECT id, bank, name from Accounts")
+    temp = cursor.fetchall()
+    result = [dict(t) for t in temp]
+    return result
+
+def get_account_id(name):
+    #https://stackoverflow.com/questions/30294515/converting-sqlite3-cursor-to-int-python
+    con = sqlite3.connect(DATABASE)
+    con.row_factory = sqlite3.Row
+    cursor = con.cursor()
+    query = "SELECT id FROM Accounts WHERE bank = ?"
+    cursor.execute(query, (name, ))
+    temp = cursor.fetchone()[0]
+    return temp
 
 def fetch_tr_details(id):
-    query = "SELECT * from Transactions where id = ?"
+    query = '''
+            SELECT Transactions.id, Transactions.timestamp, Accounts.bank as account, Transactions.category, Transactions.description, Transactions.debit, Transactions.amount
+            FROM Transactions 
+            JOIN Accounts ON Transactions.account_id = Accounts.id 
+            WHERE Transactions.id = ?
+            '''
     data = fetch_from_db(query, (id,))
     # wsadź do dictionary for easier jinja2 handling
     tr_data = [dict(row) for row in data]
     return tr_data
 
 def update_transaction(new_data):
+    id = get_account_id(new_data['account'])
+    print(id)
+    new_data.pop('account')
+    new_data['account_id'] = id
     query = "UPDATE Transactions SET"
     for key, value in new_data.items():
         temp = (f"{key} = '{value}',")
@@ -101,12 +134,16 @@ def create_account_table():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         bank TEXT NOT NULL,
         name TEXT NOT NULL,
-        custom_name TEXT,
-        amount REAL NOT NULL
+        custom_name TEXT
         );
         '''
         cursor.execute(create_table)
         conn.commit()
+
+def create_acc_snapshots():
+    date = datetime.now().strftime("%Y-%m")
+    temp = get_snapshot_amount(1, date)
+    return temp
 
 def create_transactions_table():
     with sqlite3.Connection(DATABASE) as conn:
@@ -115,25 +152,68 @@ def create_transactions_table():
         CREATE TABLE IF NOT EXISTS Transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp TEXT NOT NULL,
-        account TEXT NOT NULL,
+        account_id INTEGER NOT NULL,
         category TEXT,
         description TEXT,
         debit INT DEFAULT 1 NOT NULL,
-        amount REAL NOT NULL
+        amount REAL NOT NULL,
+        FOREIGN KEY (account_id)
+            REFERENCES Accounts (id)
         );
         '''
         cursor.execute(create_table)
         conn.commit()
 
-def create_bank_account(bank, name, amount):
+def create_monthly_balance_table():
+    with sqlite3.Connection(DATABASE) as conn:
+        cursor = conn.cursor()
+        create_table = '''
+        CREATE TABLE IF NOT EXISTS snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        snapshot_date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        FOREIGN KEY (account_id)
+            REFERENCES Accounts (id),
+        UNIQUE (account_id, snapshot_date)
+        );
+        '''
+        cursor.execute(create_table)
+        conn.commit()
+
+def create_bank_account(bank, name):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         insert_query = '''
-        INSERT INTO Accounts (bank, name, amount)
-        VALUES (?, ?, ?);
+        INSERT INTO Accounts (bank, name)
+        VALUES (?, ?);
         '''
         # ten syntax ma zapobiegać sql injections??
-        transaction_data = (bank, name, amount)
+        transaction_data = (bank, name)
+        cursor.execute(insert_query, transaction_data)
+        conn.commit()
+
+def insert_into_snapshot(id, date, amount):
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        insert_query = '''
+        INSERT INTO snapshots (account_id, snapshot_date, amount)
+        VALUES (?, ?, ?);
+        '''
+
+        transaction_data = (id, date, amount)
+        cursor.execute(insert_query, transaction_data)
+        conn.commit()
+
+def update_snapshot(id, date, amount):
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        insert_query = '''
+        UPDATE snapshots SET
+            amount = ?
+        WHERE id = ? AND snapshot_date = ?
+        '''
+        transaction_data = (amount, id, date)
         cursor.execute(insert_query, transaction_data)
         conn.commit()
 
@@ -146,16 +226,22 @@ def create_dummy_data(flag):
         print("db exists")
         pass
     else:
-        create_bank_account("Purrun Bank", "Daily", 123.45)
-        create_bank_account("Kicion", "Daily", 100.00)
-        create_bank_account("Mollior", "Savings", 123.45)
-        create_bank_account("Leeroy", "Trip", 0.00)
-        insert_transaction("2025-01-01", "Food", "biedra", "Purrun Bank", 50)
-        insert_transaction("2025-02-14", "Fun", "date", "Kicion", 13.50)
+        create_bank_account("Purrun Bank", "Daily")
+        create_bank_account("Kicion", "Daily")
+        create_bank_account("Mollior", "Savings")
+        create_bank_account("Leeroy", "Trip")
+        insert_transaction("2025-01-01", "Food", "biedra", 1, 50)
+        insert_transaction("2025-02-14", "Fun", "date", 2, 13.50)
+        date = datetime.now().strftime("%Y-%m")
+        insert_into_snapshot(1, date, 100)
+        insert_into_snapshot(2, date, 100)
+        insert_into_snapshot(3, date, 100)
+        insert_into_snapshot(4, date, 100)
         print("dummy data created")
 
 def create_db():
     flag = db_exists()
     create_account_table()
     create_transactions_table()
+    create_monthly_balance_table()
     create_dummy_data(flag)

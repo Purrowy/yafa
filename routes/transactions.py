@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
 import sqlite3
-from db_helpers import insert_transaction, fetch_from_db, delete_table_row, fetch_tr_details, update_transaction
+from db_helpers import insert_transaction, list_accounts, delete_table_row, fetch_tr_details, update_transaction, get_account_id
 
 DATABASE = "test.db"
 
@@ -22,20 +22,11 @@ def submit_transaction():
     bank = request.form.get("bank")
     amount = request.form.get("amount")
 
-    # wylicz nowy total
-    temp = fetch_from_db("select amount from Accounts WHERE bank = ?", (bank,))
-    current_acc_total = temp[0]['amount']
-    new_acc_total = current_acc_total - float(amount)
-    print(new_acc_total)
+    # znajdz acc_id
+    account_id = get_account_id(bank)
     
     # wsadź je do db transactions
-    insert_transaction(date, category, desc, bank, amount)
-
-    # update nowy total
-    with sqlite3.Connection(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE Accounts SET amount = ? WHERE bank = ?", (new_acc_total, bank,))
-        conn.commit()
+    insert_transaction(date, category, desc, account_id, amount)
 
     return redirect("/")
 
@@ -62,7 +53,24 @@ def transaction_details():
     if request.method == 'POST':
         data = request.form
 
-        # dodać walidację
+        # check against current list of accs
+        accounts = list_accounts()
+        valid_bank = False
+        for acc in accounts:
+            if data.get("account") == acc["bank"]:
+                print("essa")
+                valid_bank = True
+
+        # https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-represents-a-number-float-or-int
+        amount = data.get("amount")
+        try:
+            float(amount)
+        except ValueError:
+            return redirect(request.referrer)
+
+        if not valid_bank or not amount:
+            print("issues")
+            return redirect(request.referrer)
 
         update_transaction(dict(data))
 
