@@ -5,7 +5,7 @@
         <select id="account" name="account">
             <option value="all"> </option>
             {% for acc in accounts %}
-                <option value="{{ acc['bank'] }}">{{ acc['bank'] }}</option>
+                <option value="{{ acc['bank'] }}|{{  acc['name'] }}">{{ acc['bank'] }} - {{  acc['name'] }}</option>
             {%endfor%}
          <input type="submit" value="Szukaj w bazie">
     </form>
@@ -13,13 +13,15 @@
     <div>
         <table>
             <tr>
-                <th>Account</th>
+                <th>Bank</th>
+                <th>Name</th>
                 <th>Timestamp</th>
                 <th>Amount</th>
             </tr>
         {% for record in records %}
             <tr>
-                <td>{{ record['account'] }}</td>
+                <td>{{ record['bank'] }}</td>
+                <td>{{ record['name'] }}</td>
                 <td>{{ record['timestamp'] }}</td>
                 <td>{{ record['amount'] }}</td>
                 <td>

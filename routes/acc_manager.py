@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, abort, redirect
 from datetime import datetime, date
-from db_helpers import create_bank_account, list_accounts, insert_into_snapshot, get_account_id, get_current_balance, update_snapshot
+from scrap import validate_bank_account
+from db_helpers import create_bank_account, update_account_name, list_accounts, insert_into_snapshot, get_account_id, get_current_balance, update_snapshot
 import sqlite3
 
 DATABASE = "test.db"
@@ -15,7 +16,9 @@ def manager():
         with sqlite3.Connection(DATABASE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * from Accounts")
+            # dodać Snapshot.amount where snapshot date = date
+            cursor.execute('''SELECT Accounts.*
+                              from Accounts''')
             temp = cursor.fetchall()
             accounts_data = [dict(t) for t in temp]
 
@@ -25,38 +28,47 @@ def manager():
         return render_template("acc_manager.html", accounts_data=accounts_data)
 
     elif request.method == 'POST':
-        bank = request.form.get("bank")
-        new_amount = request.form.get("amount")
 
-        # check against current list of accs
-        accounts = list_accounts()
-        valid_bank = False
-        for acc in accounts:
-            if bank == acc["bank"]:
-                valid_bank = True
+        account_id = get_account_id(request.form.get("bank"), request.form.get("current_name"))
 
-        if not valid_bank or not new_amount.isnumeric():
-            print("fail")
+        if not account_id:
+            print("Account not found")
             return redirect("/accounts")
-        else:
-            try:
-                account_id = get_account_id(bank)
-                update_snapshot(account_id, date, new_amount)
-                print("snapshot")
-            except:
-                print("not unique")
-            return redirect("/accounts")
+
+        # https://www.freecodecamp.org/news/python-switch-statement-switch-case-example/
+        action = request.form.get("submit_button")
+        match action:
+            case "Change acc name":
+                update_account_name(account_id, request.form.get("new_name"))
+            case "Save as Snapshot":
+                new_amount = request.form.get("amount")
+                print(f"New amount is {new_amount}")
+                try:
+                    float(new_amount)
+                    update_snapshot(account_id, date, new_amount)
+                    return redirect("/accounts")
+                except ValueError:
+                    print("Invalid amount")
+                    return redirect("/accounts")
+
+        return redirect("/accounts")
 
 @acc_manager.route('/add_acc', methods=["POST"])
 def add_acc():
     if request.method == 'POST':
         bank = request.form.get("bank")
         name = request.form.get("name")
+
+        # function used this way to prevent duplicates
+        if validate_bank_account(bank, name):
+            print("acc already exists")
+            return redirect("/accounts")
+
         amount = request.form.get("amount")
         if not amount.isnumeric():
             return redirect("/accounts")
         create_bank_account(bank, name)
-        acc_id = get_account_id(bank)
+        acc_id = get_account_id(bank, name)
         insert_into_snapshot(acc_id, date, amount)
 
         return redirect('/accounts')

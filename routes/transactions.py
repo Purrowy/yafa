@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
 import sqlite3
+from scrap import validate_bank_account
 from db_helpers import insert_transaction, list_accounts, delete_table_row, fetch_tr_details, update_transaction, get_account_id
 
 DATABASE = "test.db"
@@ -16,14 +17,18 @@ def submit_transaction():
     # pobierz dane wysłane od użytkownika
     date = request.form.get("timestamp")
     if date == "":
-        date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        date = datetime.now().strftime("%Y-%m-%d")
     category = request.form.get("category")
     desc = request.form.get("desc")
-    bank = request.form.get("bank")
+    # html przekazuje bank i name razem, need to split
+    bank, name = request.form.get("bank").split("|")
     amount = request.form.get("amount")
 
+    if not validate_bank_account(bank, name):
+        return redirect("/")
+
     # znajdz acc_id
-    account_id = get_account_id(bank)
+    account_id = get_account_id(bank, name)
     
     # wsadź je do db transactions
     insert_transaction(date, category, desc, account_id, amount)
@@ -52,14 +57,11 @@ def transaction_details():
     
     if request.method == 'POST':
         data = request.form
+        valid_bank = False
 
         # check against current list of accs
-        accounts = list_accounts()
-        valid_bank = False
-        for acc in accounts:
-            if data.get("account") == acc["bank"]:
-                print("essa")
-                valid_bank = True
+        if validate_bank_account(data.get("bank"), data.get("name")):
+            valid_bank = True
 
         # https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-represents-a-number-float-or-int
         amount = data.get("amount")
@@ -73,5 +75,7 @@ def transaction_details():
             return redirect(request.referrer)
 
         update_transaction(dict(data))
+        print(dict(data))
+
 
         return redirect(request.referrer)

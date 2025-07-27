@@ -18,10 +18,16 @@ def find():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         if temp == "all":
-            cursor.execute("select Accounts.bank as account, Transactions.timestamp, Transactions.amount, Transactions.id from Transactions JOIN Accounts ON Transactions.account_id = Accounts.id")
+            cursor.execute('''select Accounts.bank as bank, Accounts.name as name, Transactions.timestamp, 
+                                     Transactions.amount, Transactions.id from Transactions 
+                                    JOIN Accounts ON Transactions.account_id = Accounts.id''')
         else:
-            acc_id = get_account_id(temp)
-            cursor.execute("select Accounts.bank as account, Transactions.timestamp, Transactions.amount, Transactions.id from Transactions JOIN Accounts ON Transactions.account_id = Accounts.id WHERE Transactions.account_id = ?", (acc_id,))
+            bank, name = request.args.get("account").split("|")
+            acc_id = get_account_id(bank, name)
+            cursor.execute('''select Accounts.bank as bank, Accounts.name as name, 
+                                Transactions.timestamp, Transactions.amount, 
+                                     Transactions.id from Transactions JOIN Accounts ON Transactions.account_id = Accounts.id 
+                              WHERE Transactions.account_id = ?''', (acc_id,))
         records = cursor.fetchall()
     
     rows = fetch_from_db("select * from Transactions")

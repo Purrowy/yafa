@@ -85,19 +85,25 @@ def list_accounts():
     result = [dict(t) for t in temp]
     return result
 
-def get_account_id(name):
-    #https://stackoverflow.com/questions/30294515/converting-sqlite3-cursor-to-int-python
-    con = sqlite3.connect(DATABASE)
-    con.row_factory = sqlite3.Row
-    cursor = con.cursor()
-    query = "SELECT id FROM Accounts WHERE bank = ?"
-    cursor.execute(query, (name, ))
-    temp = cursor.fetchone()[0]
-    return temp
+def get_account_id(bank, name):
+    try:
+        #https://stackoverflow.com/questions/30294515/converting-sqlite3-cursor-to-int-python
+        con = sqlite3.connect(DATABASE)
+        con.row_factory = sqlite3.Row
+        cursor = con.cursor()
+        query = "SELECT id FROM Accounts WHERE bank = ? AND name = ?"
+        cursor.execute(query, (bank, name, ))
+        temp = cursor.fetchone()[0]
+        return temp
+    except:
+        return False
 
 def fetch_tr_details(id):
     query = '''
-            SELECT Transactions.id, Transactions.timestamp, Accounts.bank as account, Transactions.category, Transactions.description, Transactions.debit, Transactions.amount
+            SELECT Transactions.id, Transactions.timestamp, 
+                   Accounts.bank as bank, Accounts.name as name, 
+                   Transactions.category, Transactions.description, 
+                   Transactions.debit, Transactions.amount
             FROM Transactions 
             JOIN Accounts ON Transactions.account_id = Accounts.id 
             WHERE Transactions.id = ?
@@ -108,10 +114,11 @@ def fetch_tr_details(id):
     return tr_data
 
 def update_transaction(new_data):
-    id = get_account_id(new_data['account'])
-    print(id)
-    new_data.pop('account')
-    new_data['account_id'] = id
+    account_id = get_account_id(new_data['bank'], new_data['name'])
+    print(f"account id is {account_id}")
+    new_data['account_id'] = account_id
+    new_data.pop('bank')
+    new_data.pop('name')
     query = "UPDATE Transactions SET"
     for key, value in new_data.items():
         temp = (f"{key} = '{value}',")
@@ -125,6 +132,13 @@ def update_transaction(new_data):
         cursor.execute(query)
         conn.commit()
     return
+
+def update_account_name(account_id, new_name):
+    query = "UPDATE Accounts SET name = ? WHERE id = ?;"
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, (new_name, account_id, ))
+        conn.commit()
 
 def create_account_table():
     with sqlite3.Connection(DATABASE) as conn:
@@ -209,8 +223,7 @@ def update_snapshot(id, date, amount):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         insert_query = '''
-        UPDATE snapshots SET
-            amount = ?
+        UPDATE snapshots SET amount = ?
         WHERE id = ? AND snapshot_date = ?
         '''
         transaction_data = (amount, id, date)
