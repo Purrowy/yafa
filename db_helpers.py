@@ -93,8 +93,8 @@ def get_account_id(bank, name):
         cursor = con.cursor()
         query = "SELECT id FROM Accounts WHERE bank = ? AND name = ?"
         cursor.execute(query, (bank, name, ))
-        temp = cursor.fetchone()[0]
-        return temp
+        account_id = cursor.fetchone()[0]
+        return account_id
     except:
         return False
 
@@ -205,6 +205,14 @@ def create_bank_account(bank, name):
         # ten syntax ma zapobiegać sql injections??
         transaction_data = (bank, name)
         cursor.execute(insert_query, transaction_data)
+        conn.commit()
+
+def delete_bank_account(account_id):
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        query = '''
+                DELETE FROM Accounts WHERE id = ?;'''
+        cursor.execute(query, [account_id])
         conn.commit()
 
 def insert_into_snapshot(id, date, amount):

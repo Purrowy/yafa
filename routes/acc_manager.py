@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, request, abort, redirect
 from datetime import datetime, date
 from scrap import validate_bank_account
-from db_helpers import create_bank_account, update_account_name, list_accounts, insert_into_snapshot, get_account_id, get_current_balance, update_snapshot
+from db_helpers import create_bank_account, update_account_name, list_accounts, insert_into_snapshot, get_account_id, \
+    get_current_balance, update_snapshot, delete_bank_account
 import sqlite3
 
 DATABASE = "test.db"
@@ -49,6 +50,12 @@ def manager():
                     return redirect("/accounts")
                 except ValueError:
                     print("Invalid amount")
+                    return redirect("/accounts")
+            case "Delete account":
+                try:
+                    delete_bank_account(account_id)
+                except ValueError:
+                    print("Bank account not found")
                     return redirect("/accounts")
 
         return redirect("/accounts")
