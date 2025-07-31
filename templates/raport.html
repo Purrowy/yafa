@@ -3,7 +3,7 @@
 
 <h1>raport</h1>
 
-    <table>
+    <table id="report_table">
     <tr>
         <th id="header_id">ID</th>
         <th onclick="this.innerHTML = 'aaa'">Date</th>
@@ -21,10 +21,5 @@
     </tr>
     {%endfor%}
 </table>
-
-    <script>
-    document.getElementById("header_id").innerHTML = "Test"
-    document.getElementById("header_acc").addEventListener("click", function (){ alert("pass"); });
-    </script>
 
 {% endblock %}
