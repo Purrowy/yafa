@@ -5,3 +5,4 @@
 /selenium-*
 /test.db
 /.idea
+/venv*

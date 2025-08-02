@@ -1,8 +1,10 @@
 import sqlite3
 from pathlib import Path
 from datetime import datetime
+import dateutil.relativedelta
 
 DATABASE = "test.db"
+currentMonth = datetime.now().strftime("%Y-%m")
 
 def insert_transaction(date, category, desc, account_id, amount):
 
@@ -32,7 +34,7 @@ def fetch_data_index():
     recent = fetch_from_db("select Transactions.*, Accounts.bank as account FROM Transactions JOIN Accounts ON Transactions.account_id = Accounts.id ORDER BY id DESC LIMIT 5")
     total = 0
     for acc in accounts:
-        acc['amount'] = get_current_balance(acc['id'])
+        acc['amount'] = get_current_balance(acc['id'], currentMonth)
         total = total + acc["amount"]
 
     return recent, accounts, total
@@ -56,10 +58,15 @@ def delete_table_row(table, filter):
         conn.commit()
     return
 
-def get_current_balance(account):
-    date = datetime.now().strftime("%Y-%m")
-    current_balance = fetch_from_db(f"select amount from snapshots WHERE account_id = {account} AND snapshot_date = '{date}'")[0][0]
-    amount_spent = fetch_from_db(f"SELECT SUM(amount) FROM Transactions where account_id = {account} AND timestamp LIKE '{date}%'")[0][0]
+def get_current_balance(account, snapshot_date):
+    if not snapshot_date:
+        snapshot_date = currentMonth
+    try:
+        current_balance = fetch_from_db(f"select amount from snapshots WHERE account_id = {account} AND snapshot_date = '{snapshot_date}'")[0][0]
+        amount_spent = fetch_from_db(f"SELECT SUM(amount) FROM Transactions where account_id = {account} AND timestamp LIKE '{snapshot_date}%'")[0][0]
+    except:
+        current_balance = 0
+        amount_spent = 0
     try:
         current_balance = float(current_balance) - float(amount_spent)
     except:
@@ -155,9 +162,16 @@ def create_account_table():
         conn.commit()
 
 def create_acc_snapshots():
-    date = datetime.now().strftime("%Y-%m")
-    temp = get_snapshot_amount(1, date)
-    return temp
+    account_list = list_accounts()
+    for account in account_list:
+        try:
+            get_snapshot_amount(account['id'], currentMonth)
+        except:
+            # https://stackoverflow.com/questions/9724906/python-date-of-the-previous-month
+            print(f"account {account['id']} failed, creating snapshot")
+            last_month = datetime.now() - dateutil.relativedelta.relativedelta(months=1)
+            insert_into_snapshot(account['id'], currentMonth, get_current_balance(account['id'], last_month.strftime('%Y-%m')))
+            pass
 
 def create_transactions_table():
     with sqlite3.Connection(DATABASE) as conn:
@@ -227,14 +241,14 @@ def insert_into_snapshot(id, date, amount):
         cursor.execute(insert_query, transaction_data)
         conn.commit()
 
-def update_snapshot(id, date, amount):
+def update_snapshot(account_id, date, amount):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         insert_query = '''
         UPDATE snapshots SET amount = ?
-        WHERE id = ? AND snapshot_date = ?
+        WHERE account_id = ? AND snapshot_date = ?
         '''
-        transaction_data = (amount, id, date)
+        transaction_data = (amount, account_id, date)
         cursor.execute(insert_query, transaction_data)
         conn.commit()
 

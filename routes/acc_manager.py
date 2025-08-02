@@ -24,7 +24,7 @@ def manager():
             accounts_data = [dict(t) for t in temp]
 
         for acc in accounts_data:
-            acc["amount"] = get_current_balance(acc["id"])
+            acc["amount"] = get_current_balance(acc["id"], date)
 
         return render_template("acc_manager.html", accounts_data=accounts_data)
 
