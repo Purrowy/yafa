@@ -6,6 +6,69 @@ import dateutil.relativedelta
 DATABASE = "test.db"
 currentMonth = datetime.now().strftime("%Y-%m")
 
+class Transactions:
+
+    def __init__(self, db_path=DATABASE):
+        self.db_path = db_path
+
+    # https://stackoverflow.com/questions/9539921/how-do-i-define-a-function-with-optional-arguments
+    # https://stackoverflow.com/questions/67890858/how-to-insert-variable-number-of-values-into-a-table-in-sqlite-using-prepared-st
+    # https://stackoverflow.com/questions/34092528/pythonic-way-to-check-if-a-variable-was-passed-as-kwargs
+    def insert_new_transaction(self, timestamp, account_id, amount, **kwargs):
+
+        # ustaw jako None/1 jesli nie zostało podane jako param
+        description = kwargs.get("description", None)
+        category = kwargs.get("category", None)
+        debit = kwargs.get("debit", 1)
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = "INSERT INTO transactions (account_id, amount, timestamp, description, category, debit) VALUES (?, ?, ?, ?, ?, ?)"
+            cursor.execute(query, (account_id, amount, timestamp, description, category, debit))
+            conn.commit()
+
+    def get_transaction(self, transaction_id):
+        with sqlite3.connect(self.db_path) as conn:
+            # bez sqlite3.Row nie działa transaction.keys()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            query = "SELECT * FROM Transactions WHERE id = ?"
+            cursor.execute(query, (transaction_id,))
+            transaction = cursor.fetchone()
+            return transaction
+
+    def update_transaction(self, transaction_id, **kwargs):
+
+        original_tr_data = self.get_transaction(transaction_id)
+
+        timestamp = kwargs.get("timestamp", original_tr_data["timestamp"])
+        description = kwargs.get("description", original_tr_data["description"])
+        category = kwargs.get("category", original_tr_data["category"])
+        debit = kwargs.get("debit", original_tr_data["debit"])
+        account_id = kwargs.get("account_id", original_tr_data["account_id"])
+        amount = kwargs.get("amount", original_tr_data["amount"])
+
+        # finish
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = '''UPDATE transactions
+                       SET account_id = ?,
+                           amount = ?,
+                           timestamp = ?,
+                           description = ?,
+                           category = ?,
+                           debit = ?
+                       WHERE id = ?'''
+            cursor.execute(query, (account_id, amount, timestamp, description, category, debit, transaction_id))
+            conn.commit()
+
+    def delete_transaction(self, transaction_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = "DELETE FROM transactions WHERE id = ?"
+            cursor.execute(query, (transaction_id,))
+            conn.commit()
+
 def insert_transaction(date, category, desc, account_id, amount):
 
     # utwórz połączenie do test.db i zamknij po wykonaniu bloku
