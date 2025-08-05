@@ -2,15 +2,14 @@ from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
 import sqlite3
 from scrap import validate_bank_account
-from db_helpers import insert_transaction, list_accounts, delete_table_row, fetch_tr_details, update_transaction, get_account_id
+from db_helpers import get_account_id, Transactions
 
 DATABASE = "test.db"
 
 transactions = Blueprint('transactions', __name__)
 
 
-# pobierz dane z formularza na stronie głównej, wsadź je do tabeli Transactions i zupdateuj
-# amounts o nowy total
+# pobierz dane z formularza na stronie głównej, wsadź je do tabeli Transactions
 @transactions.route("/submit_transaction", methods=["POST"])
 def submit_transaction():
     
@@ -31,51 +30,51 @@ def submit_transaction():
     account_id = get_account_id(bank, name)
     
     # wsadź je do db transactions
-    insert_transaction(date, category, desc, account_id, amount)
+    tx = Transactions()
+    tx.insert_new_transaction(date, account_id, amount, description=desc, category=category)
 
     return redirect("/")
 
 @transactions.route("/delete_transaction", methods=["POST"])
 def delete_transaction():
-    id = request.form.get("id")
-    table = "Transactions"
-    delete_table_row(table, id)
+    tr_id = request.form.get("id")
+    tx = Transactions()
+    tx.delete_transaction(tr_id)
     # https://stackoverflow.com/questions/41270855/flask-redirect-to-same-page-after-form-submission
     return redirect(request.referrer)
 
 @transactions.route("/transaction_details", methods=["POST", "GET"])
 def transaction_details():
-    
+
+    # przy GET pobierz full dane transakcji i wyświetl
     if request.method == 'GET':
         # https://www.tutorialspoint.com/how-to-process-incoming-request-data-in-flask
-        id = request.args.get('id')
-        if id.isdigit():
-            tr_data = fetch_tr_details(id)
-            return render_template("tr_details.html", tr_data=tr_data, id=id)
+        tr_id = request.args.get('id')
+        if tr_id.isdigit():
+            tx = Transactions()
+            data = tx.get_transaction(tr_id, "full")
+            tr_data = [dict(data)]
+            return render_template("tr_details.html", tr_data=tr_data, id=tr_id)
         else:
             return ("Invalid ID")    
-    
-    if request.method == 'POST':
-        data = request.form
-        valid_bank = False
 
-        # check against current list of accs
-        if validate_bank_account(data.get("bank"), data.get("name")):
-            valid_bank = True
+    # przy POST zupdateuj transakcje o nowe info
+    elif request.method == 'POST':
+        data = request.form
+        account_id = get_account_id(data["bank"], data["name"])
 
         # https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-represents-a-number-float-or-int
-        amount = data.get("amount")
+        amount = data["amount"]
         try:
             float(amount)
         except ValueError:
             return redirect(request.referrer)
 
-        if not valid_bank or not amount:
+        if not account_id or not amount:
             print("issues")
             return redirect(request.referrer)
 
-        update_transaction(dict(data))
-        print(dict(data))
-
+        tx = Transactions()
+        tx.update_transaction(data["id"], timestamp=data["timestamp"], description=data["description"], category=data["category"], amount=amount, account_id=account_id, debit=data["debit"])
 
         return redirect(request.referrer)

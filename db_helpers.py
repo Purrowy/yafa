@@ -14,6 +14,7 @@ class Transactions:
     # https://stackoverflow.com/questions/9539921/how-do-i-define-a-function-with-optional-arguments
     # https://stackoverflow.com/questions/67890858/how-to-insert-variable-number-of-values-into-a-table-in-sqlite-using-prepared-st
     # https://stackoverflow.com/questions/34092528/pythonic-way-to-check-if-a-variable-was-passed-as-kwargs
+
     def insert_new_transaction(self, timestamp, account_id, amount, **kwargs):
 
         # ustaw jako None/1 jesli nie zostało podane jako param
@@ -27,12 +28,26 @@ class Transactions:
             cursor.execute(query, (account_id, amount, timestamp, description, category, debit))
             conn.commit()
 
-    def get_transaction(self, transaction_id):
+    def get_transaction(self, transaction_id, mode="default"):
         with sqlite3.connect(self.db_path) as conn:
             # bez sqlite3.Row nie działa transaction.keys()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            query = "SELECT * FROM Transactions WHERE id = ?"
+
+            match mode:
+                case "default":
+                    query = "SELECT * FROM Transactions WHERE id = ?"
+                case "full":
+                    query = '''
+                            SELECT Transactions.id, Transactions.timestamp,
+                                   Accounts.bank as bank, Accounts.name as name,
+                                   Transactions.category, Transactions.description,
+                                   Transactions.debit, Transactions.amount
+                            FROM Transactions
+                                     JOIN Accounts ON Transactions.account_id = Accounts.id
+                            WHERE Transactions.id = ?
+                            '''
+
             cursor.execute(query, (transaction_id,))
             transaction = cursor.fetchone()
             return transaction
@@ -48,7 +63,6 @@ class Transactions:
         account_id = kwargs.get("account_id", original_tr_data["account_id"])
         amount = kwargs.get("amount", original_tr_data["amount"])
 
-        # finish
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             query = '''UPDATE transactions
@@ -69,20 +83,6 @@ class Transactions:
             cursor.execute(query, (transaction_id,))
             conn.commit()
 
-def insert_transaction(date, category, desc, account_id, amount):
-
-    # utwórz połączenie do test.db i zamknij po wykonaniu bloku
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        insert_query = '''
-        INSERT INTO Transactions (timestamp, category, description, account_id, amount)
-        VALUES (?, ?, ?, ?, ?);
-        '''
-        # ten syntax zapobiega sql injections
-        transaction_data = (date, category, desc, account_id, amount)
-        cursor.execute(insert_query, transaction_data)
-        conn.commit()
-
 # params żeby nie wrzucać query jako formatted stringa
 def fetch_from_db(query, params=()):
     with sqlite3.connect(DATABASE) as conn:
@@ -101,25 +101,6 @@ def fetch_data_index():
         total = total + acc["amount"]
 
     return recent, accounts, total
-
-def update_table_row(table, column, new_value, filter):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        # ? syntax nie działa z nazwami tabel i kolumn - validate table and column with a whitelist?
-        query = f"UPDATE {table} SET {column} = ? WHERE id = ?;"
-        transaction_data = (new_value, filter)
-        cursor.execute(query, transaction_data)
-        conn.commit()
-
-def delete_table_row(table, filter):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        # add validation thru whitelist for table
-        query = f"DELETE FROM {table} WHERE id = ?;"
-        # https://stackoverflow.com/questions/16856647/sqlite3-programmingerror-incorrect-number-of-bindings-supplied-the-current-sta
-        cursor.execute(query, [filter])
-        conn.commit()
-    return
 
 def get_current_balance(account, snapshot_date):
     if not snapshot_date:
@@ -167,41 +148,6 @@ def get_account_id(bank, name):
         return account_id
     except:
         return False
-
-def fetch_tr_details(id):
-    query = '''
-            SELECT Transactions.id, Transactions.timestamp, 
-                   Accounts.bank as bank, Accounts.name as name, 
-                   Transactions.category, Transactions.description, 
-                   Transactions.debit, Transactions.amount
-            FROM Transactions 
-            JOIN Accounts ON Transactions.account_id = Accounts.id 
-            WHERE Transactions.id = ?
-            '''
-    data = fetch_from_db(query, (id,))
-    # wsadź do dictionary for easier jinja2 handling
-    tr_data = [dict(row) for row in data]
-    return tr_data
-
-def update_transaction(new_data):
-    account_id = get_account_id(new_data['bank'], new_data['name'])
-    print(f"account id is {account_id}")
-    new_data['account_id'] = account_id
-    new_data.pop('bank')
-    new_data.pop('name')
-    query = "UPDATE Transactions SET"
-    for key, value in new_data.items():
-        temp = (f"{key} = '{value}',")
-        query = query + " " + temp
-    
-    # wywalenie ostatniego przecinka
-    query = query[:-1] + f" WHERE id = {new_data['id']};"
-
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute(query)
-        conn.commit()
-    return
 
 def update_account_name(account_id, new_name):
     query = "UPDATE Accounts SET name = ? WHERE id = ?;"
@@ -324,12 +270,15 @@ def create_dummy_data(flag):
         print("db exists")
         pass
     else:
+        tx = Transactions()
         create_bank_account("Purrun Bank", "Daily")
         create_bank_account("Kicion", "Daily")
         create_bank_account("Mollior", "Savings")
         create_bank_account("Leeroy", "Trip")
-        insert_transaction("2025-01-01", "Food", "biedra", 1, 50)
-        insert_transaction("2025-02-14", "Fun", "date", 2, 13.50)
+        #insert_transaction("2025-01-01", "Food", "biedra", 1, 50)
+        tx.insert_new_transaction("2025-01-01", 1, 50, description="biedra", category="Food")
+        tx.insert_new_transaction("2025-02-47", 2, 13.50, description="date", category="Fun")
+        #insert_transaction("2025-02-14", "Fun", "date", 2, 13.50)
         date = datetime.now().strftime("%Y-%m")
         insert_into_snapshot(1, date, 100)
         insert_into_snapshot(2, date, 100)
