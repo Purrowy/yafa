@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
 import sqlite3
 from scrap import validate_bank_account
-from db_helpers import get_account_id, Transactions
+from db_helpers import get_account_id, Transactions, list_accounts, fetch_from_db
 
 DATABASE = "test.db"
 
@@ -78,3 +78,13 @@ def transaction_details():
         tx.update_transaction(data["id"], timestamp=data["timestamp"], description=data["description"], category=data["category"], amount=amount, account_id=account_id, debit=data["debit"])
 
         return redirect(request.referrer)
+
+@transactions.route("/find_transactions", methods=["GET"])
+def find_transactions():
+    if request.method == 'GET':
+        accounts = list_accounts()
+        tr = Transactions()
+        # dane do overview table
+        records = tr.get_all_transactions()
+
+        return render_template("find_transactions.html", accounts=accounts, records=records)

@@ -52,6 +52,20 @@ class Transactions:
             transaction = cursor.fetchone()
             return transaction
 
+    def get_all_transactions(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = '''
+                    select Accounts.bank as bank, Accounts.name as name, Transactions.timestamp, 
+                    Transactions.amount, Transactions.id from Transactions 
+                    JOIN Accounts ON Transactions.account_id = Accounts.id
+                    '''
+            cursor.execute(query)
+            transactions = cursor.fetchall()
+            return transactions
+
     def update_transaction(self, transaction_id, **kwargs):
 
         original_tr_data = self.get_transaction(transaction_id)
