@@ -2,7 +2,7 @@ from flask import Flask, render_template
 from routes.acc_manager import acc_manager
 from routes.transactions import transactions
 from routes.raport import raport
-from db_helpers import fetch_data_index, create_db, create_acc_snapshots
+from db_helpers import fetch_data_index, create_db, create_acc_snapshots, Categories
 
 app = Flask(__name__)
 app.register_blueprint(acc_manager)
@@ -14,7 +14,8 @@ app.register_blueprint(raport)
 def main():
     n = create_acc_snapshots()
     print(n)
-    categories = ['Food', 'Bills', 'Fun']
+    cs = Categories()
+    categories = cs.list_categories()
     recent, accounts, total = fetch_data_index()
     return render_template('index.html', recent = recent, accounts = accounts, total = total, categories = categories)
 

@@ -1,11 +1,12 @@
 from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
 from scrap import validate_bank_account
-from db_helpers import get_account_id, Transactions, list_accounts
+from db_helpers import get_account_id, Transactions, list_accounts, Categories
 
 transactions = Blueprint('transactions', __name__)
 
 tx = Transactions()
+cs = Categories()
 
 # pobierz dane z formularza na stronie głównej, wsadź je do tabeli Transactions
 @transactions.route("/submit_transaction", methods=["POST"])
@@ -16,6 +17,7 @@ def submit_transaction():
     if date == "":
         date = datetime.now().strftime("%Y-%m-%d")
     category = request.form.get("category")
+    category_id = cs.get_category_id(category)
     desc = request.form.get("desc")
     # html przekazuje bank i name razem, need to split
     bank, name = request.form.get("bank").split("|")
@@ -28,7 +30,7 @@ def submit_transaction():
     account_id = get_account_id(bank, name)
     
     # wsadź je do db transactions
-    tx.insert_new_transaction(date, account_id, amount, description=desc, category=category)
+    tx.insert_new_transaction(date, account_id, category_id, amount, description=desc)
 
     return redirect("/")
 
@@ -57,6 +59,7 @@ def transaction_details():
     elif request.method == 'POST':
         data = request.form
         account_id = get_account_id(data["bank"], data["name"])
+        category_id = cs.get_category_id(data["category"])
 
         # https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-represents-a-number-float-or-int
         amount = data["amount"]
@@ -69,7 +72,7 @@ def transaction_details():
             print("issues")
             return redirect(request.referrer)
 
-        tx.update_transaction(data["id"], timestamp=data["timestamp"], description=data["description"], category=data["category"], amount=amount, account_id=account_id, debit=data["debit"])
+        tx.update_transaction(data["id"], timestamp=data["timestamp"], description=data["description"], category_id=category_id, amount=amount, account_id=account_id, debit=data["debit"])
 
         return redirect(request.referrer)
 

@@ -6,6 +6,54 @@ import dateutil.relativedelta
 DATABASE = "test.db"
 currentMonth = datetime.now().strftime("%Y-%m")
 
+class Categories:
+    def __init__(self, db_path=DATABASE):
+        self.db_path = db_path
+
+    def create_table(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # category_type: I = incoming, F = fixed, V = variable, P = planned/future
+
+            query = '''
+                    CREATE TABLE IF NOT EXISTS Categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_name TEXT NOT NULL,
+                    category_type TEXT NOT NULL,
+                    UNIQUE (category_name, category_type)
+                    )
+                    '''
+            cursor.execute(query)
+            conn.commit()
+
+    def create_new_category(self, category_name, category_type):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = '''INSERT INTO Categories (category_name, category_type) VALUES (?, ?)'''
+            cursor.execute(query, (category_name, category_type))
+            conn.commit()
+
+    def list_categories(self, category_type="_"):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            query = '''SELECT category_name as name from Categories
+                        WHERE category_type LIKE ?
+                        ORDER BY category_name'''
+            cursor.execute(query, (category_type,))
+            rows = cursor.fetchall()
+            categories = [dict(r) for r in rows]
+            return categories
+
+    def get_category_id(self, category_name):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = '''SELECT id from Categories WHERE category_name = ?'''
+            cursor.execute(query, (category_name,))
+            category_id = cursor.fetchone()[0]
+            return category_id
+
 class Transactions:
 
     def __init__(self, db_path=DATABASE):
@@ -15,17 +63,16 @@ class Transactions:
     # https://stackoverflow.com/questions/67890858/how-to-insert-variable-number-of-values-into-a-table-in-sqlite-using-prepared-st
     # https://stackoverflow.com/questions/34092528/pythonic-way-to-check-if-a-variable-was-passed-as-kwargs
 
-    def insert_new_transaction(self, timestamp, account_id, amount, **kwargs):
+    def insert_new_transaction(self, timestamp, account_id, category_id, amount, **kwargs):
 
         # ustaw jako None/1 jesli nie zostało podane jako param
         description = kwargs.get("description", None)
-        category = kwargs.get("category", None)
         debit = kwargs.get("debit", 1)
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            query = "INSERT INTO transactions (account_id, amount, timestamp, description, category, debit) VALUES (?, ?, ?, ?, ?, ?)"
-            cursor.execute(query, (account_id, amount, timestamp, description, category, debit))
+            query = "INSERT INTO transactions (account_id, amount, timestamp, description, category_id, debit) VALUES (?, ?, ?, ?, ?, ?)"
+            cursor.execute(query, (account_id, amount, timestamp, description, category_id, debit))
             conn.commit()
 
     def get_transaction(self, transaction_id, mode="default"):
@@ -40,11 +87,12 @@ class Transactions:
                 case "full":
                     query = '''
                             SELECT Transactions.id, Transactions.timestamp,
-                                   Accounts.bank as bank, Accounts.name as name,
-                                   Transactions.category, Transactions.description,
-                                   Transactions.debit, Transactions.amount
+                                Accounts.bank as bank, Accounts.name as name,
+                                Categories.category_name as category, Transactions.description,
+                                Transactions.debit, Transactions.amount
                             FROM Transactions
-                                     JOIN Accounts ON Transactions.account_id = Accounts.id
+                                JOIN Accounts ON Transactions.account_id = Accounts.id
+                                JOIN Categories ON Transactions.category_id = Categories.id
                             WHERE Transactions.id = ?
                             '''
 
@@ -74,7 +122,7 @@ class Transactions:
 
         timestamp = kwargs.get("timestamp", original_tr_data["timestamp"])
         description = kwargs.get("description", original_tr_data["description"])
-        category = kwargs.get("category", original_tr_data["category"])
+        category_id = kwargs.get("category_id", original_tr_data["category_id"])
         debit = kwargs.get("debit", original_tr_data["debit"])
         account_id = kwargs.get("account_id", original_tr_data["account_id"])
         amount = kwargs.get("amount", original_tr_data["amount"])
@@ -86,10 +134,10 @@ class Transactions:
                            amount = ?,
                            timestamp = ?,
                            description = ?,
-                           category = ?,
+                           category_id = ?,
                            debit = ?
                        WHERE id = ?'''
-            cursor.execute(query, (account_id, amount, timestamp, description, category, debit, transaction_id))
+            cursor.execute(query, (account_id, amount, timestamp, description, category_id, debit, transaction_id))
             conn.commit()
 
     def delete_transaction(self, transaction_id):
@@ -98,6 +146,19 @@ class Transactions:
             query = "DELETE FROM transactions WHERE id = ?"
             cursor.execute(query, (transaction_id,))
             conn.commit()
+
+    def sum_transactions_by_categories(self,time_range):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            query = '''SELECT Categories.category_name, SUM(Transactions.amount) from Transactions 
+                       JOIN Categories ON Transactions.category_id = Categories.id
+                       WHERE Transactions.timestamp LIKE ?
+                       GROUP BY Categories.category_name'''
+            # SELECT Categories.category_name, SUM(Transactions.amount) from Transactions JOIN Categories ON Transactions.category_id = Categories.id WHERE Transactions.timestamp LIKE '2025-08%' GROUP BY Transactions.category_id
+            cursor.execute(query, (time_range,))
+            rows = cursor.fetchall()
+            return rows
 
 # params żeby nie wrzucać query jako formatted stringa
 def fetch_from_db(query, params=()):
@@ -199,6 +260,7 @@ def create_acc_snapshots():
             pass
 
 def create_transactions_table():
+    # https://stackoverflow.com/questions/68694701/how-to-use-multiple-foreign-keys-in-one-table-in-sqlite
     with sqlite3.Connection(DATABASE) as conn:
         cursor = conn.cursor()
         create_table = '''
@@ -206,12 +268,14 @@ def create_transactions_table():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp TEXT NOT NULL,
         account_id INTEGER NOT NULL,
-        category TEXT,
+        category_id INTEGER NOT NULL,
         description TEXT,
         debit INT DEFAULT 1 NOT NULL,
         amount REAL NOT NULL,
         FOREIGN KEY (account_id)
-            REFERENCES Accounts (id)
+            REFERENCES Accounts (id),
+        FOREIGN KEY (category_id)
+            REFERENCES Categories (id)
         );
         '''
         cursor.execute(create_table)
@@ -287,13 +351,27 @@ def create_dummy_data(flag):
         pass
     else:
         tx = Transactions()
+        cs = Categories()
+        cs.create_table()
+        incoming = ["Wypka", "Kołchoz dodatkowe", "Other dodatkowe", "Odsetki"]
+        fixed = ["Rent", "Electricity", "Gas", "Internet", "Phone"]
+        var = ["Food", "Social", "Fun", "Shopping", "Kittens", "Bank expenses", "Learning", "Tickets"]
+        planned = ["Trip", "Rain", "Investements", "Extra", "Emergency"]
+        for i in incoming:
+            cs.create_new_category(i, "I")
+        for f in fixed:
+            cs.create_new_category(f, "F")
+        for v in var:
+            cs.create_new_category(v, "V")
+        for p in planned:
+            cs.create_new_category(p, "P")
         create_bank_account("Purrun Bank", "Daily")
         create_bank_account("Kicion", "Daily")
         create_bank_account("Mollior", "Savings")
         create_bank_account("Leeroy", "Trip")
         #insert_transaction("2025-01-01", "Food", "biedra", 1, 50)
-        tx.insert_new_transaction("2025-01-01", 1, 50, description="biedra", category="Food")
-        tx.insert_new_transaction("2025-02-47", 2, 13.50, description="date", category="Fun")
+        tx.insert_new_transaction("2025-01-01", 1, 10, 50, description="biedra")
+        tx.insert_new_transaction("2025-02-47", 2, 11, 13.50, description="date")
         #insert_transaction("2025-02-14", "Fun", "date", 2, 13.50)
         date = datetime.now().strftime("%Y-%m")
         insert_into_snapshot(1, date, 100)
