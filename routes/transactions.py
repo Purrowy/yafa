@@ -1,13 +1,11 @@
 from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
-import sqlite3
 from scrap import validate_bank_account
-from db_helpers import get_account_id, Transactions, list_accounts, fetch_from_db
-
-DATABASE = "test.db"
+from db_helpers import get_account_id, Transactions, list_accounts
 
 transactions = Blueprint('transactions', __name__)
 
+tx = Transactions()
 
 # pobierz dane z formularza na stronie głównej, wsadź je do tabeli Transactions
 @transactions.route("/submit_transaction", methods=["POST"])
@@ -30,7 +28,6 @@ def submit_transaction():
     account_id = get_account_id(bank, name)
     
     # wsadź je do db transactions
-    tx = Transactions()
     tx.insert_new_transaction(date, account_id, amount, description=desc, category=category)
 
     return redirect("/")
@@ -38,7 +35,6 @@ def submit_transaction():
 @transactions.route("/delete_transaction", methods=["POST"])
 def delete_transaction():
     tr_id = request.form.get("id")
-    tx = Transactions()
     tx.delete_transaction(tr_id)
     # https://stackoverflow.com/questions/41270855/flask-redirect-to-same-page-after-form-submission
     return redirect(request.referrer)
@@ -51,7 +47,6 @@ def transaction_details():
         # https://www.tutorialspoint.com/how-to-process-incoming-request-data-in-flask
         tr_id = request.args.get('id')
         if tr_id.isdigit():
-            tx = Transactions()
             data = tx.get_transaction(tr_id, "full")
             tr_data = [dict(data)]
             return render_template("tr_details.html", tr_data=tr_data, id=tr_id)
@@ -74,17 +69,24 @@ def transaction_details():
             print("issues")
             return redirect(request.referrer)
 
-        tx = Transactions()
         tx.update_transaction(data["id"], timestamp=data["timestamp"], description=data["description"], category=data["category"], amount=amount, account_id=account_id, debit=data["debit"])
 
         return redirect(request.referrer)
 
 @transactions.route("/find_transactions", methods=["GET"])
 def find_transactions():
-    if request.method == 'GET':
-        accounts = list_accounts()
-        tr = Transactions()
-        # dane do overview table
-        records = tr.get_all_transactions()
 
-        return render_template("find_transactions.html", accounts=accounts, records=records)
+    try:
+        if not request.args.get("account"):
+            account_id = '%'
+        else:
+            bank, name = request.args.get("account").split("|")
+            account_id = get_account_id(bank, name)
+    except ValueError:
+        return redirect("/find_transactions")
+
+    accounts = list_accounts()
+    # dane do overview table
+    records = tx.get_all_transactions(account_id)
+
+    return render_template("find_transactions.html", accounts=accounts, records=records)

@@ -1,14 +1,12 @@
 from flask import Flask, render_template
 from routes.acc_manager import acc_manager
 from routes.transactions import transactions
-from routes.find_transactions import find_transactions
 from routes.raport import raport
 from db_helpers import fetch_data_index, create_db, create_acc_snapshots
 
 app = Flask(__name__)
 app.register_blueprint(acc_manager)
 app.register_blueprint(transactions)
-app.register_blueprint(find_transactions)
 app.register_blueprint(raport)
 
 

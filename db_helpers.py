@@ -52,17 +52,19 @@ class Transactions:
             transaction = cursor.fetchone()
             return transaction
 
-    def get_all_transactions(self):
+    def get_all_transactions(self, account_id):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
             query = '''
-                    select Accounts.bank as bank, Accounts.name as name, Transactions.timestamp, 
-                    Transactions.amount, Transactions.id from Transactions 
-                    JOIN Accounts ON Transactions.account_id = Accounts.id
+                    select Accounts.bank as bank, Accounts.name as name, 
+                    Transactions.timestamp, Transactions.amount, 
+                    Transactions.id from Transactions JOIN Accounts ON Transactions.account_id = Accounts.id 
+                    WHERE Transactions.account_id LIKE ?
                     '''
-            cursor.execute(query)
+
+            cursor.execute(query, (account_id,))
             transactions = cursor.fetchall()
             return transactions
 

@@ -1,15 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
 <H1></H1>
+    <!-- dropdown z listą kont -->
     <form action="{{ url_for('transactions.find_transactions') }}" method="get">
         <select id="account" name="account">
-            <option value="all"> </option>
+            <option value="all|all"> </option>
             {% for acc in accounts %}
                 <option value="{{ acc['bank'] }}|{{  acc['name'] }}">{{ acc['bank'] }} - {{  acc['name'] }}</option>
             {%endfor%}
          <input type="submit" value="Szukaj w bazie">
     </form>
             <h1></h1>
+
+    <!-- overview table -->
     <div>
         <table>
             <tr>
@@ -40,4 +43,5 @@
         {%endfor%}
         </table>
     </div>
+
 {% endblock %}
