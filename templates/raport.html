@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 
+    <!-- https://stackoverflow.com/questions/12655155/jinja2-for-loop-with-conditions -->
+
 <h1>raport</h1>
 
     <table id="report_table">
@@ -11,15 +13,32 @@
     <tr>
         <th>Incoming</th>
     </tr>
-    {% for row in data %}
+    {% for row in data if row.type == "I"%}
     <tr>
-        <td>{{ row['id'] }}</td>
-        <td>{{ row['timestamp'] }}</td>
-        <td>{{ row['account'] }}</td>
-        <td>{{ row['description'] }}</td>
-        <td>{{ row['amount'] }}</td>
+        <td>{{ row.category }}</td>
+        <td>{{ row.total }}</td>
     </tr>
     {%endfor%}
+
+    <tr>
+        <th>Wydatki zmienne</th>
+    </tr>
+    {%  for row in data if row.type == "V" %}
+    <tr>
+        <td>{{ row.category }}</td>
+        <td>{{ row.total }}</td>
+    </tr>
+    {% endfor %}
+
+    <tr>
+        <th>Wydatki przyszłościowe</th>
+    </tr>
+    {% for row in data if row.type == "P" %}
+    <tr>
+        <td>{{ row.category }}</td>
+        <td>{{ row.total }}</td>
+    </tr>
+    {% endfor %}
 </table>
 
 {% endblock %}

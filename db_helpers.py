@@ -151,14 +151,15 @@ class Transactions:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            query = '''SELECT Categories.category_name, SUM(Transactions.amount) from Transactions 
+            query = '''SELECT Categories.category_name as category, Categories.category_type as type, SUM(Transactions.amount) as total from Transactions 
                        JOIN Categories ON Transactions.category_id = Categories.id
                        WHERE Transactions.timestamp LIKE ?
-                       GROUP BY Categories.category_name'''
-            # SELECT Categories.category_name, SUM(Transactions.amount) from Transactions JOIN Categories ON Transactions.category_id = Categories.id WHERE Transactions.timestamp LIKE '2025-08%' GROUP BY Transactions.category_id
+                       GROUP BY Transactions.category_id'''
+            # WHERE Transactions.timestamp LIKE '2025-08%'
             cursor.execute(query, (time_range,))
             rows = cursor.fetchall()
-            return rows
+            result = [dict(r) for r in rows]
+            return result
 
 # params żeby nie wrzucać query jako formatted stringa
 def fetch_from_db(query, params=()):
