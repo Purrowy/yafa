@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, abort, redirect
 from datetime import datetime, date
 from scrap import validate_bank_account
-from db_helpers import create_bank_account, update_account_name, list_accounts, insert_into_snapshot, get_account_id, \
-    get_current_balance, update_snapshot, delete_bank_account
+from db_helpers import create_bank_account, update_account_name, insert_into_snapshot, get_account_id, \
+    get_current_balance, update_snapshot, delete_bank_account, Accounts
 import sqlite3
 
 DATABASE = "test.db"
@@ -81,3 +81,11 @@ def add_acc():
         return redirect('/accounts')
     else:
         return "nope", 400
+
+@acc_manager.route('/create_snapshot', methods=["POST"])
+def create_snapshot():
+    print("create_snapshot called")
+    acs = Accounts()
+    test_data = acs.get_accounts(1)
+    print(test_data)
+    return redirect("/accounts")

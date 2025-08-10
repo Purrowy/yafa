@@ -6,6 +6,36 @@ import dateutil.relativedelta
 DATABASE = "test.db"
 currentMonth = datetime.now().strftime("%Y-%m")
 
+class Snapshot:
+    def __init__(self, db_path=DATABASE):
+        self.db_path = db_path
+
+    def create_snapshot(self):
+        print("create_snapshot called db")
+        pass
+
+class Accounts:
+    def __init__(self, db_path=DATABASE):
+        self.db_path = db_path
+
+    def get_accounts(self, mode="all"):
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        match mode:
+            case "all":
+                query = '''SELECT id, bank, name FROM Accounts'''
+                cursor.execute(query)
+            case _:
+                query = '''SELECT id, bank, name FROM Accounts WHERE id = ?'''
+                cursor.execute(query, (mode,))
+
+        accounts_data = cursor.fetchall()
+        result = [dict(a) for a in accounts_data]
+        return result
+
 class Categories:
     def __init__(self, db_path=DATABASE):
         self.db_path = db_path

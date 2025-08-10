@@ -40,4 +40,10 @@
         </form>
     </div>
 
+    <div>
+        <form action="{{ url_for('acc_manager.create_snapshot') }}" method="post">
+            <input id="create_snapshot_button" type="submit" value="Create Snapshot">
+        </form>
+    </div>
+
 {% endblock %}
