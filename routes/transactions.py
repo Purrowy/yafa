@@ -15,7 +15,7 @@ def submit_transaction():
     # pobierz dane wysłane od użytkownika
     date = request.form.get("timestamp")
     if date == "":
-        date = datetime.now().strftime("%Y-%m-%d")
+        date = datetime.now()
     category = request.form.get("category")
     category_id = cs.get_category_id(category)
     desc = request.form.get("desc")

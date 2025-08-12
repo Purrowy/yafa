@@ -86,6 +86,6 @@ def add_acc():
 def create_snapshot():
     print("create_snapshot called")
     acs = Accounts()
-    test_data = acs.get_accounts(1)
+    test_data = acs.get_accounts()
     print(test_data)
     return redirect("/accounts")

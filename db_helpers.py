@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from pathlib import Path
 from datetime import datetime
 import dateutil.relativedelta
@@ -10,9 +11,52 @@ class Snapshot:
     def __init__(self, db_path=DATABASE):
         self.db_path = db_path
 
-    def create_snapshot(self):
+    def create_snapshot(self, data):
+
+        # missing logika do: get all accs, oblicz current balance, dodaj jako amount do data
+
+        timestamp = datetime.now()
+        json_data = json.dumps(data)
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = '''INSERT INTO Snapshots (timestamp, data) VALUES (?, ?)'''
+            cursor.execute(query, (timestamp, json_data))
+            conn.commit()
+            cursor.close()
+
         print("create_snapshot called db")
         pass
+
+    def get_last_snapshot(self):
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = '''SELECT timestamp, data FROM Snapshots ORDER BY timestamp DESC LIMIT 1'''
+            cursor.execute(query)
+            result = cursor.fetchone()
+            timestamp, data = result
+            cursor.close()
+
+        # zwróc jako dict
+        return {
+            'timestamp': timestamp,
+            'data': json.loads(data)
+        }
+
+    def create_table(self):
+        print("create_table called db")
+        with sqlite3.Connection(self.db_path) as conn:
+            cursor = conn.cursor()
+            create_table = '''
+            CREATE TABLE IF NOT EXISTS Snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL UNIQUE,
+            data JSON NOT NULL
+            );
+            '''
+            cursor.execute(create_table)
+            conn.commit()
 
 class Accounts:
     def __init__(self, db_path=DATABASE):
@@ -35,6 +79,25 @@ class Accounts:
         accounts_data = cursor.fetchall()
         result = [dict(a) for a in accounts_data]
         return result
+
+    def get_account_balance(self, account_id):
+
+        # 1. wczytaj dane z last snap
+        snp = Snapshot(self.db_path)
+        last_snapshot = snp.get_last_snapshot()
+        last_snapshot_timestamp = last_snapshot['timestamp']
+
+        # 2. z last snap wczytaj wartość pod amount, używając account id
+        last_balance = next(item['amount'] for item in last_snapshot['data'] if item['id'] == account_id)
+
+        # 3. znajdź sumę transakcji późniejszych od last_snap_date dla danego account_id z Transactions
+        tx = Transactions()
+        sum_of_trs_since_last_snapshot = tx.sum_transactions_by_account(account_id, last_snapshot_timestamp)
+
+        # 4. oblicz current balance
+        current_balance = last_balance - sum_of_trs_since_last_snapshot
+
+        return current_balance
 
 class Categories:
     def __init__(self, db_path=DATABASE):
@@ -191,6 +254,19 @@ class Transactions:
             result = [dict(r) for r in rows]
             return result
 
+    def sum_transactions_by_account(self,account_id, start_time):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = '''
+                    SELECT SUM(Transactions.amount) as total from Transactions 
+                    WHERE Transactions.account_id = ?
+                    AND Transactions.timestamp > ?
+                    '''
+            cursor.execute(query, (account_id, start_time))
+            rows = cursor.fetchone()
+
+        return rows[0]
+
 # params żeby nie wrzucać query jako formatted stringa
 def fetch_from_db(query, params=()):
     with sqlite3.connect(DATABASE) as conn:
@@ -204,6 +280,7 @@ def fetch_data_index():
     accounts = list_accounts()
     recent = fetch_from_db("select Transactions.*, Accounts.bank as account FROM Transactions JOIN Accounts ON Transactions.account_id = Accounts.id ORDER BY id DESC LIMIT 5")
     total = 0
+    tx = Transactions()
     for acc in accounts:
         acc['amount'] = get_current_balance(acc['id'], currentMonth)
         total = total + acc["amount"]

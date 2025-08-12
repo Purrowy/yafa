@@ -12,8 +12,8 @@ app.register_blueprint(raport)
 
 @app.route("/")
 def main():
-    n = create_acc_snapshots()
-    print(n)
+    #n = create_acc_snapshots()
+    #print(n)
     cs = Categories()
     categories = cs.list_categories()
     recent, accounts, total = fetch_data_index()

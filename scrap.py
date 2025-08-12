@@ -1,4 +1,5 @@
-from db_helpers import list_accounts, Transactions
+from db_helpers import list_accounts, Transactions, Snapshot, Accounts
+import json
 
 def validate_bank_account(vendor, account_name):
     accounts = list_accounts()
@@ -14,8 +15,17 @@ def validate_bank_account(vendor, account_name):
 
 #trans.update_transaction(12, timestamp="2025-10-15")
 
-
-
+snp = Snapshot()
+#snp.create_table()
+#list_data = [{'id': 1, 'bank': 'aaa', 'amount': 100}, {'id': 2, 'bank': 'Kicion', 'amount': 2137}]
+#snp.create_snapshot(list_data)
+# print("---")
+# last =  snp.get_last_snapshot()
+# print(last)
+# print("^ z get last snap")
+acs = Accounts()
+amount = acs.get_account_balance(2)
+print(f"---\n{amount}\n^z get acc balance")
 
 
 
