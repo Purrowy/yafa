@@ -7,16 +7,31 @@ import dateutil.relativedelta
 DATABASE = "test.db"
 currentMonth = datetime.now().strftime("%Y-%m")
 
+
 class Snapshot:
     def __init__(self, db_path=DATABASE):
         self.db_path = db_path
 
-    def create_snapshot(self, data):
+    def create_snapshot(self):
 
-        # missing logika do: get all accs, oblicz current balance, dodaj jako amount do data
-
+        acs = Accounts()
         timestamp = datetime.now()
-        json_data = json.dumps(data)
+
+        accounts = acs.get_accounts()
+
+        # pop unneeded items from each list
+        # calculate current balance for each acc and add it to the list of dicts.
+        # Set amount to 0 if get_acc_balance doesn't return anything
+        for account in accounts:
+            account.pop("name")
+            account.pop("bank")
+            try:
+                account['amount'] = acs.get_account_balance(account['id'])
+            except:
+                account['amount'] = 0
+
+        # change to JSON and insert as is to data column in Snapshots table
+        json_data = json.dumps(accounts)
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -25,7 +40,6 @@ class Snapshot:
             conn.commit()
             cursor.close()
 
-        print("create_snapshot called db")
         pass
 
     def get_last_snapshot(self):
@@ -89,13 +103,20 @@ class Accounts:
 
         # 2. z last snap wczytaj wartość pod amount, używając account id
         last_balance = next(item['amount'] for item in last_snapshot['data'] if item['id'] == account_id)
+        #print(f"Get account balance:\nlast_snapshot_timestamp: {last_snapshot_timestamp}\nlast balance loaded: {last_balance}")
 
         # 3. znajdź sumę transakcji późniejszych od last_snap_date dla danego account_id z Transactions
         tx = Transactions()
         sum_of_trs_since_last_snapshot = tx.sum_transactions_by_account(account_id, last_snapshot_timestamp)
+        #print(f"sum of last trx loaded: {sum_of_trs_since_last_snapshot}")
+
+        # move it to sum_trs later
+        if sum_of_trs_since_last_snapshot is None:
+            sum_of_trs_since_last_snapshot = 0
 
         # 4. oblicz current balance
         current_balance = last_balance - sum_of_trs_since_last_snapshot
+        #print(f"current_balance: {current_balance} for account_id: {account_id}")
 
         return current_balance
 
