@@ -189,6 +189,7 @@ class Transactions:
             cursor.execute(query, (account_id, amount, timestamp, description, category_id, debit))
             conn.commit()
 
+    # get_transactions and get_all should be combined into one and reworked
     def get_transaction(self, transaction_id, mode="default"):
         with sqlite3.connect(self.db_path) as conn:
             # bez sqlite3.Row nie działa transaction.keys()
@@ -198,6 +199,16 @@ class Transactions:
             match mode:
                 case "default":
                     query = "SELECT * FROM Transactions WHERE id = ?"
+                case "dash":
+                    query = '''
+                            SELECT Transactions.id, timestamp, Accounts.bank as account, description, amount
+                            FROM Transactions
+                            JOIN Accounts ON Transactions.account_id = Accounts.id
+                            ORDER BY Transactions.id DESC LIMIT 5
+                            '''
+                    cursor.execute(query)
+                    transactions = cursor.fetchone()
+                    return transactions
                 case "full":
                     query = '''
                             SELECT Transactions.id, Transactions.timestamp,
@@ -211,8 +222,8 @@ class Transactions:
                             '''
 
             cursor.execute(query, (transaction_id,))
-            transaction = cursor.fetchone()
-            return transaction
+            transactions = cursor.fetchone()
+            return transactions
 
     def get_all_transactions(self, account_id):
         with sqlite3.connect(self.db_path) as conn:
