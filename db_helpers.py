@@ -2,7 +2,6 @@ import sqlite3
 import json
 from pathlib import Path
 from datetime import datetime
-import dateutil.relativedelta
 
 DATABASE = "test.db"
 currentMonth = datetime.now().strftime("%Y-%m")
@@ -76,6 +75,20 @@ class Accounts:
     def __init__(self, db_path=DATABASE):
         self.db_path = db_path
 
+    def create_table(self):
+        with sqlite3.Connection(self.db_path) as conn:
+            cursor = conn.cursor()
+            create_table = '''
+            CREATE TABLE IF NOT EXISTS Accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bank TEXT NOT NULL,
+            name TEXT NOT NULL,
+            custom_name TEXT
+            );
+            '''
+            cursor.execute(create_table)
+            conn.commit()
+
     def get_accounts(self, mode="all"):
 
         conn = sqlite3.connect(self.db_path)
@@ -102,7 +115,10 @@ class Accounts:
         last_snapshot_timestamp = last_snapshot['timestamp']
 
         # 2. z last snap wczytaj wartość pod amount, używając account id
-        last_balance = next(item['amount'] for item in last_snapshot['data'] if item['id'] == account_id)
+        try:
+            last_balance = next(item['amount'] for item in last_snapshot['data'] if item['id'] == account_id)
+        except:
+            last_balance = 0
         #print(f"Get account balance:\nlast_snapshot_timestamp: {last_snapshot_timestamp}\nlast balance loaded: {last_balance}")
 
         # 3. znajdź sumę transakcji późniejszych od last_snap_date dla danego account_id z Transactions
@@ -119,6 +135,19 @@ class Accounts:
         #print(f"current_balance: {current_balance} for account_id: {account_id}")
 
         return current_balance
+
+    def get_account_id(self, bank, name):
+        try:
+            # https://stackoverflow.com/questions/30294515/converting-sqlite3-cursor-to-int-python
+            con = sqlite3.connect(self.db_path)
+            con.row_factory = sqlite3.Row
+            cursor = con.cursor()
+            query = "SELECT id FROM Accounts WHERE bank = ? AND name = ?"
+            cursor.execute(query, (bank, name,))
+            account_id = cursor.fetchone()[0]
+            return account_id
+        except:
+            return False
 
 class Categories:
     def __init__(self, db_path=DATABASE):
@@ -173,6 +202,28 @@ class Transactions:
     def __init__(self, db_path=DATABASE):
         self.db_path = db_path
 
+    def create_table(self):
+        # https://stackoverflow.com/questions/68694701/how-to-use-multiple-foreign-keys-in-one-table-in-sqlite
+        with sqlite3.Connection(self.db_path) as conn:
+            cursor = conn.cursor()
+            create_table = '''
+            CREATE TABLE IF NOT EXISTS Transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            account_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            description TEXT,
+            debit INT DEFAULT 1 NOT NULL,
+            amount REAL NOT NULL,
+            FOREIGN KEY (account_id)
+                REFERENCES Accounts (id),
+            FOREIGN KEY (category_id)
+                REFERENCES Categories (id)
+            );
+            '''
+            cursor.execute(create_table)
+            conn.commit()
+
     # https://stackoverflow.com/questions/9539921/how-do-i-define-a-function-with-optional-arguments
     # https://stackoverflow.com/questions/67890858/how-to-insert-variable-number-of-values-into-a-table-in-sqlite-using-prepared-st
     # https://stackoverflow.com/questions/34092528/pythonic-way-to-check-if-a-variable-was-passed-as-kwargs
@@ -201,13 +252,13 @@ class Transactions:
                     query = "SELECT * FROM Transactions WHERE id = ?"
                 case "dash":
                     query = '''
-                            SELECT Transactions.id, timestamp, Accounts.bank as account, description, amount
+                            SELECT Transactions.id as id, timestamp, Accounts.bank as account, description, amount
                             FROM Transactions
                             JOIN Accounts ON Transactions.account_id = Accounts.id
                             ORDER BY Transactions.id DESC LIMIT 5
                             '''
                     cursor.execute(query)
-                    transactions = cursor.fetchone()
+                    transactions = cursor.fetchall()
                     return transactions
                 case "full":
                     query = '''
@@ -299,143 +350,11 @@ class Transactions:
 
         return rows[0]
 
-# params żeby nie wrzucać query jako formatted stringa
-def fetch_from_db(query, params=()):
-    with sqlite3.connect(DATABASE) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        return rows
-
-def fetch_data_index():
-    accounts = list_accounts()
-    recent = fetch_from_db("select Transactions.*, Accounts.bank as account FROM Transactions JOIN Accounts ON Transactions.account_id = Accounts.id ORDER BY id DESC LIMIT 5")
-    total = 0
-    tx = Transactions()
-    for acc in accounts:
-        acc['amount'] = get_current_balance(acc['id'], currentMonth)
-        total = total + acc["amount"]
-
-    return recent, accounts, total
-
-def get_current_balance(account, snapshot_date):
-    if not snapshot_date:
-        snapshot_date = currentMonth
-    try:
-        current_balance = fetch_from_db(f"select amount from snapshots WHERE account_id = {account} AND snapshot_date = '{snapshot_date}'")[0][0]
-        amount_spent = fetch_from_db(f"SELECT SUM(amount) FROM Transactions where account_id = {account} AND timestamp LIKE '{snapshot_date}%'")[0][0]
-    except:
-        current_balance = 0
-        amount_spent = 0
-    try:
-        current_balance = float(current_balance) - float(amount_spent)
-    except:
-        pass
-    return current_balance
-
-def get_snapshot_amount(account_id, date):
-    con = sqlite3.connect(DATABASE)
-    con.row_factory = sqlite3.Row
-    cursor = con.cursor()
-    query = "SELECT amount FROM snapshots WHERE account_id = ? AND snapshot_date = ?"
-    cursor.execute(query, (account_id, date, ))
-    result = cursor.fetchone()[0]
-    return result
-
-def list_accounts():
-    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
-    con = sqlite3.connect(DATABASE)
-    con.row_factory = sqlite3.Row
-    cursor = con.cursor()
-    cursor.execute("SELECT id, bank, name from Accounts")
-    temp = cursor.fetchall()
-    result = [dict(t) for t in temp]
-    return result
-
-def get_account_id(bank, name):
-    try:
-        #https://stackoverflow.com/questions/30294515/converting-sqlite3-cursor-to-int-python
-        con = sqlite3.connect(DATABASE)
-        con.row_factory = sqlite3.Row
-        cursor = con.cursor()
-        query = "SELECT id FROM Accounts WHERE bank = ? AND name = ?"
-        cursor.execute(query, (bank, name, ))
-        account_id = cursor.fetchone()[0]
-        return account_id
-    except:
-        return False
-
 def update_account_name(account_id, new_name):
     query = "UPDATE Accounts SET name = ? WHERE id = ?;"
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute(query, (new_name, account_id, ))
-        conn.commit()
-
-def create_account_table():
-    with sqlite3.Connection(DATABASE) as conn:
-        cursor = conn.cursor()
-        create_table = '''
-        CREATE TABLE IF NOT EXISTS Accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        bank TEXT NOT NULL,
-        name TEXT NOT NULL,
-        custom_name TEXT
-        );
-        '''
-        cursor.execute(create_table)
-        conn.commit()
-
-def create_acc_snapshots():
-    account_list = list_accounts()
-    for account in account_list:
-        try:
-            get_snapshot_amount(account['id'], currentMonth)
-        except:
-            # https://stackoverflow.com/questions/9724906/python-date-of-the-previous-month
-            print(f"account {account['id']} failed, creating snapshot")
-            last_month = datetime.now() - dateutil.relativedelta.relativedelta(months=1)
-            insert_into_snapshot(account['id'], currentMonth, get_current_balance(account['id'], last_month.strftime('%Y-%m')))
-            pass
-
-def create_transactions_table():
-    # https://stackoverflow.com/questions/68694701/how-to-use-multiple-foreign-keys-in-one-table-in-sqlite
-    with sqlite3.Connection(DATABASE) as conn:
-        cursor = conn.cursor()
-        create_table = '''
-        CREATE TABLE IF NOT EXISTS Transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT NOT NULL,
-        account_id INTEGER NOT NULL,
-        category_id INTEGER NOT NULL,
-        description TEXT,
-        debit INT DEFAULT 1 NOT NULL,
-        amount REAL NOT NULL,
-        FOREIGN KEY (account_id)
-            REFERENCES Accounts (id),
-        FOREIGN KEY (category_id)
-            REFERENCES Categories (id)
-        );
-        '''
-        cursor.execute(create_table)
-        conn.commit()
-
-def create_monthly_balance_table():
-    with sqlite3.Connection(DATABASE) as conn:
-        cursor = conn.cursor()
-        create_table = '''
-        CREATE TABLE IF NOT EXISTS snapshots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        account_id INTEGER NOT NULL,
-        snapshot_date TEXT NOT NULL,
-        amount REAL NOT NULL,
-        FOREIGN KEY (account_id)
-            REFERENCES Accounts (id),
-        UNIQUE (account_id, snapshot_date)
-        );
-        '''
-        cursor.execute(create_table)
         conn.commit()
 
 def create_bank_account(bank, name):
@@ -458,29 +377,6 @@ def delete_bank_account(account_id):
         cursor.execute(query, [account_id])
         conn.commit()
 
-def insert_into_snapshot(id, date, amount):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        insert_query = '''
-        INSERT INTO snapshots (account_id, snapshot_date, amount)
-        VALUES (?, ?, ?);
-        '''
-
-        transaction_data = (id, date, amount)
-        cursor.execute(insert_query, transaction_data)
-        conn.commit()
-
-def update_snapshot(account_id, date, amount):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        insert_query = '''
-        UPDATE snapshots SET amount = ?
-        WHERE account_id = ? AND snapshot_date = ?
-        '''
-        transaction_data = (amount, account_id, date)
-        cursor.execute(insert_query, transaction_data)
-        conn.commit()
-
 def db_exists():
     if Path(DATABASE).exists():
         return True
@@ -488,15 +384,16 @@ def db_exists():
 def create_dummy_data(flag):
     if flag:
         print("db exists")
-        pass
+        return
     else:
         tx = Transactions()
         cs = Categories()
-        cs.create_table()
+        snp = Snapshot()
+
         incoming = ["Wypka", "Kołchoz dodatkowe", "Other dodatkowe", "Odsetki"]
         fixed = ["Rent", "Electricity", "Gas", "Internet", "Phone"]
         var = ["Food", "Social", "Fun", "Shopping", "Kittens", "Bank expenses", "Learning", "Tickets"]
-        planned = ["Trip", "Rain", "Investements", "Extra", "Emergency"]
+        planned = ["Trip", "Rain", "Investments", "Extra", "Emergency"]
         for i in incoming:
             cs.create_new_category(i, "I")
         for f in fixed:
@@ -509,20 +406,24 @@ def create_dummy_data(flag):
         create_bank_account("Kicion", "Daily")
         create_bank_account("Mollior", "Savings")
         create_bank_account("Leeroy", "Trip")
-        #insert_transaction("2025-01-01", "Food", "biedra", 1, 50)
+
         tx.insert_new_transaction("2025-01-01", 1, 10, 50, description="biedra")
         tx.insert_new_transaction("2025-02-47", 2, 11, 13.50, description="date")
-        #insert_transaction("2025-02-14", "Fun", "date", 2, 13.50)
-        date = datetime.now().strftime("%Y-%m")
-        insert_into_snapshot(1, date, 100)
-        insert_into_snapshot(2, date, 100)
-        insert_into_snapshot(3, date, 100)
-        insert_into_snapshot(4, date, 100)
+
+        snp.create_snapshot()
         print("dummy data created")
 
 def create_db():
     flag = db_exists()
-    create_account_table()
-    create_transactions_table()
-    create_monthly_balance_table()
+
+    acs = Accounts()
+    cs = Categories()
+    snp = Snapshot()
+    tx = Transactions()
+
+    acs.create_table()
+    cs.create_table()
+    snp.create_table()
+    tx.create_table()
+
     create_dummy_data(flag)

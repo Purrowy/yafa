@@ -1,12 +1,12 @@
 from flask import Blueprint, render_template, request, redirect
 from datetime import datetime
-from scrap import validate_bank_account
-from db_helpers import get_account_id, Transactions, list_accounts, Categories
+from db_helpers import Transactions, Categories, Accounts
 
 transactions = Blueprint('transactions', __name__)
 
 tx = Transactions()
 cs = Categories()
+acs = Accounts()
 
 # pobierz dane z formularza na stronie głównej, wsadź je do tabeli Transactions
 @transactions.route("/submit_transaction", methods=["POST"])
@@ -23,11 +23,11 @@ def submit_transaction():
     bank, name = request.form.get("bank").split("|")
     amount = request.form.get("amount")
 
-    if not validate_bank_account(bank, name):
+    if not acs.get_account_id(bank, name):
         return redirect("/")
 
     # znajdz acc_id
-    account_id = get_account_id(bank, name)
+    account_id = acs.get_account_id(bank, name)
     
     # wsadź je do db transactions
     tx.insert_new_transaction(date, account_id, category_id, amount, description=desc)
@@ -58,7 +58,7 @@ def transaction_details():
     # przy POST zupdateuj transakcje o nowe info
     elif request.method == 'POST':
         data = request.form
-        account_id = get_account_id(data["bank"], data["name"])
+        account_id = acs.get_account_id(data["bank"], data["name"])
         category_id = cs.get_category_id(data["category"])
 
         # https://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-represents-a-number-float-or-int
@@ -84,11 +84,11 @@ def find_transactions():
             account_id = '%'
         else:
             bank, name = request.args.get("account").split("|")
-            account_id = get_account_id(bank, name)
+            account_id = acs.get_account_id(bank, name)
     except ValueError:
         return redirect("/find_transactions")
 
-    accounts = list_accounts()
+    accounts = acs.get_accounts()
     # dane do overview table
     records = tx.get_all_transactions(account_id)
 

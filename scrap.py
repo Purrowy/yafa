@@ -1,21 +1,11 @@
-from db_helpers import list_accounts, Transactions, Accounts, Categories
-import json
+from db_helpers import Transactions, Accounts, Categories
 
 tx = Transactions()
 acs = Accounts()
 cs = Categories()
 
-# move to db helpers
-def validate_bank_account(vendor, account_name):
-    accounts = list_accounts()
-    account_exists = False
-    for acc in accounts:
-        if vendor == acc['bank'] and account_name == acc['name']:
-            account_exists = True
-
-    return account_exists
-
 def get_dashboard_data():
+    categories = cs.list_categories()
     total = 0
     # can either calculate balance each time or load data from last snapshot
     accounts = acs.get_accounts()
@@ -25,7 +15,7 @@ def get_dashboard_data():
 
     recent_transactions = tx.get_transaction(1, "dash")
 
-    return accounts, total, recent_transactions
+    return accounts, total, recent_transactions, categories
 
 #trans = Transactions()
 #trans.insert_new_transaction("2025-08", 2, 21.37, category='Fun', description='Fun transaction')

@@ -9,7 +9,6 @@
             <th>Category</th>
             <th>Current balance</th>
             <th> </th>
-            <th> </th>
         </tr>
             {% for data in accounts_data %}
             <form action="{{ url_for('acc_manager.manager') }}" method="post">
@@ -19,8 +18,7 @@
             <tr>
                 <td>{{ data['bank'] }}</td>
                 <td><input type="text" id="name_{{ data['name'] }}" name="new_name" value="{{ data['name'] }}"></td>
-                <td><input type="text" id="amount_{{ data['id'] }}" name="amount" value="{{ data['amount'] }}"></td>
-                <td><input id="snapshot_{{ data['bank'] }}" type = "submit" name="submit_button" value="Save as Snapshot"></td>
+                <td><input type="text" id="amount_{{ data['id'] }}" name="amount" value="{{ data['amount'] }}"></td>>
                 <td><input id="change_name" type = "submit" name="submit_button" value="Change acc name"></td>
                 <td><input id="delete_acc" type = "submit" name="submit_button" value="Delete account"></td>
             </tr>

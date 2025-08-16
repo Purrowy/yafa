@@ -13,12 +13,22 @@
     <tr>
         <th>Incoming</th>
     </tr>
-    {% for row in data if row.type == "I"%}
+    {% for row in data if row.type == "I" %}
     <tr>
         <td>{{ row.category }}</td>
         <td>{{ row.total }}</td>
     </tr>
     {%endfor%}
+
+    <tr>
+        <th>Wydatki stałe</th>
+    </tr>
+    {%  for row in data if row.type == "F" %}
+    <tr>
+        <td>{{ row.category }}</td>
+        <td>{{ row.total }}</td>
+    </tr>
+    {% endfor %}
 
     <tr>
         <th>Wydatki zmienne</th>
